@@ -1,0 +1,50 @@
+name: Build and deploy image
+
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Login to DockerHub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Get Version
+        run: |
+          export VERSION=${GITHUB_REF#refs/*/}
+          echo "::env VERSION=${VERSION}"
+          echo "VERSION=${VERSION}" >> $GITHUB_ENV
+
+      - name: Build image
+        run: |
+          docker build \
+          --file Dockerfile \
+          --tag marco79423/redirects:latest \
+          .
+
+      - name: Push image
+        run: |
+          echo "::env VERSION=${{env.VERSION}}"
+
+          docker push marco79423/redirects:latest
+
+          docker tag marco79423/redirects:latest marco79423/redirects:${{env.VERSION}}
+          docker push marco79423/redirects:${{env.VERSION}}
+
+      - name: 發布 Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
